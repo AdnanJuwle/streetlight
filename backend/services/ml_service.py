@@ -4,7 +4,13 @@ ML Service for real-time inference
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../ml_pipeline'))
+
+# Add ml_pipeline to path - handle both running from backend/ and project root
+backend_dir = os.path.dirname(os.path.dirname(__file__))
+project_root = os.path.dirname(backend_dir)
+ml_pipeline_path = os.path.join(project_root, 'ml_pipeline')
+if os.path.exists(ml_pipeline_path) and ml_pipeline_path not in sys.path:
+    sys.path.insert(0, project_root)
 
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -12,8 +18,18 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import logging
 
+try:
+    from ml_pipeline.inference import MLInference
+except ImportError as e:
+    # If ml_pipeline not available, create a dummy class
+    logging.warning(f"ML pipeline not available: {e}")
+    class MLInference:
+        def __init__(self):
+            pass
+        def predict(self, *args, **kwargs):
+            return {'error': 'ML pipeline not available'}
+
 from models.database import SensorData, MLPrediction
-from ml_pipeline.inference import MLInference
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

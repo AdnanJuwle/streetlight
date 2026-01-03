@@ -7,9 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from routes import devices, alerts
-from models.database import init_db
-from schemas import HealthResponse
+try:
+    # Try relative imports first (when running from backend directory)
+    from routes import devices, alerts
+    from models.database import init_db
+    from schemas import HealthResponse
+except ImportError:
+    # Fall back to absolute imports (when running from project root)
+    from backend.routes import devices, alerts
+    from backend.models.database import init_db
+    from backend.schemas import HealthResponse
 
 # Initialize database on startup
 @asynccontextmanager
@@ -46,14 +53,20 @@ app.include_router(alerts.router)
 
 # Import ML routes
 try:
-    from routes import ml
+    try:
+        from routes import ml
+    except ImportError:
+        from backend.routes import ml
     app.include_router(ml.router)
 except ImportError:
     pass  # ML routes optional if models not available
 
 # Import analytics routes
 try:
-    from routes import analytics
+    try:
+        from routes import analytics
+    except ImportError:
+        from backend.routes import analytics
     app.include_router(analytics.router)
 except ImportError:
     pass
@@ -62,7 +75,10 @@ except ImportError:
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
-    from models.database import create_engine_instance
+    try:
+        from models.database import create_engine_instance
+    except ImportError:
+        from backend.models.database import create_engine_instance
     try:
         engine = create_engine_instance()
         with engine.connect() as conn:
