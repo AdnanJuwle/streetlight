@@ -55,6 +55,8 @@ dist/
 *.db
 *.sqlite
 *.sqlite3
+streetlight.db
+backend/streetlight.db
 
 # ML Models
 models/*.pkl

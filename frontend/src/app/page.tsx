@@ -7,6 +7,7 @@ import DeviceList from '@/components/DeviceList';
 import StatisticsPanel from '@/components/StatisticsPanel';
 import AlertsPanel from '@/components/AlertsPanel';
 import RealTimeChart from '@/components/RealTimeChart';
+import MLPredictionsPanel from '@/components/MLPredictionsPanel';
 
 export default function Home() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -106,17 +107,24 @@ export default function Home() {
       </div>
 
       {selectedDevice && (
-        <div className="grid grid-2" style={{ marginBottom: '20px' }}>
-          <div className="card">
-            <h2 style={{ marginBottom: '15px' }}>Statistics</h2>
-            <StatisticsPanel deviceId={selectedDevice} />
+        <>
+          <div className="grid grid-2" style={{ marginBottom: '20px' }}>
+            <div className="card">
+              <h2 style={{ marginBottom: '15px' }}>Statistics</h2>
+              <StatisticsPanel deviceId={selectedDevice} />
+            </div>
+
+            <div className="card">
+              <h2 style={{ marginBottom: '15px' }}>Real-time Data</h2>
+              <RealTimeChart deviceId={selectedDevice} />
+            </div>
           </div>
 
-          <div className="card">
-            <h2 style={{ marginBottom: '15px' }}>Real-time Data</h2>
-            <RealTimeChart deviceId={selectedDevice} />
+          <div className="card" style={{ marginBottom: '20px' }}>
+            <h2 style={{ marginBottom: '15px' }}>ML Predictions</h2>
+            <MLPredictionsPanel deviceId={selectedDevice} />
           </div>
-        </div>
+        </>
       )}
     </div>
   );

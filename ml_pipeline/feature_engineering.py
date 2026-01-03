@@ -120,6 +120,7 @@ class FeatureEngineer:
         light_cols = [f'light_{i+1}_ldr' for i in range(4)]
         light_fault_cols = [f'light_{i+1}_fault' for i in range(4)]
         light_state_cols = [f'light_{i+1}_state' for i in range(4)]
+        light_ir_cols = [f'light_{i+1}_ir' for i in range(4)]
         
         # Count available light columns
         available_light_cols = [col for col in light_cols if col in df.columns]
@@ -145,7 +146,153 @@ class FeatureEngineer:
             df['total_active'] = df[available_state_cols].sum(axis=1)
             df['active_rate'] = df['total_active'] / len(available_state_cols)
         
+        # Add light dampness and turn-on delay features for each light
+        for i in range(4):
+            light_id = i + 1
+            ldr_col = f'light_{light_id}_ldr'
+            state_col = f'light_{light_id}_state'
+            ir_col = f'light_{light_id}_ir'
+            
+            if all(col in df.columns for col in [ldr_col, state_col, ir_col]):
+                # Light dampness: LDR2 value when light should be on
+                # Higher LDR value = less light detected = more dampness/fault
+                # Only calculate when light_state is True (light should be on)
+                df[f'light_{light_id}_dampness'] = np.where(
+                    df[state_col] == 1,  # Light should be on
+                    df[ldr_col],  # LDR2 reading (higher = less light = more dampness)
+                    0  # No dampness when light is off
+                )
+                
+                # Average dampness over rolling window (for trend analysis)
+                df[f'light_{light_id}_dampness_rolling_mean'] = (
+                    df[f'light_{light_id}_dampness']
+                    .rolling(window=self.window_size, min_periods=1)
+                    .mean()
+                )
+                
+                # Turn-on delay: Time between IR detection and light actually turning on
+                # This indicates relay aging
+                df[f'light_{light_id}_turn_on_delay'] = self._calculate_turn_on_delay(
+                    df, ir_col, state_col, ldr_col
+                )
+                
+                # Average delay over rolling window
+                df[f'light_{light_id}_delay_rolling_mean'] = (
+                    df[f'light_{light_id}_turn_on_delay']
+                    .rolling(window=self.window_size, min_periods=1)
+                    .mean()
+                )
+        
+        # Aggregate dampness and delay features across all lights
+        dampness_cols = [f'light_{i+1}_dampness' for i in range(4) 
+                        if f'light_{i+1}_dampness' in df.columns]
+        delay_cols = [f'light_{i+1}_turn_on_delay' for i in range(4) 
+                     if f'light_{i+1}_turn_on_delay' in df.columns]
+        
+        if dampness_cols:
+            df['mean_dampness'] = df[dampness_cols].mean(axis=1)
+            df['max_dampness'] = df[dampness_cols].max(axis=1)
+        
+        if delay_cols:
+            df['mean_turn_on_delay'] = df[delay_cols].mean(axis=1)
+            df['max_turn_on_delay'] = df[delay_cols].max(axis=1)
+        
         return df
+    
+    def _calculate_turn_on_delay(
+        self, 
+        df: pd.DataFrame, 
+        ir_col: str, 
+        state_col: str, 
+        ldr_col: str
+    ) -> pd.Series:
+        """
+        Calculate turn-on delay: time between IR detection and light actually turning on.
+        This indicates relay aging.
+        
+        Returns:
+            Series with delay values in seconds (0 if no delay detected)
+        """
+        delay = pd.Series(0.0, index=df.index)
+        
+        if len(df) < 2:
+            return delay
+        
+        # Convert timestamp to numeric for time calculations
+        timestamp_numeric = None
+        if 'timestamp' in df.columns:
+            try:
+                timestamp_numeric = pd.to_datetime(df['timestamp']).astype('int64') / 1e9  # Convert to seconds
+            except:
+                timestamp_numeric = None
+        
+        if timestamp_numeric is None:
+            # If no timestamp, use index as proxy (assuming regular intervals)
+            timestamp_numeric = pd.Series(df.index * 5, index=df.index)  # Assume 5 second intervals
+        
+        # Track when IR sensor detects vehicle (transition from 0 to 1 or low to high)
+        ir_detected = (df[ir_col] == 1) & (df[ir_col].shift(1).fillna(0) == 0)
+        
+        # Also track when state transitions from 0 to 1 (light turns on)
+        state_turned_on = (df[state_col] == 1) & (df[state_col].shift(1).fillna(0) == 0)
+        
+        # For each IR detection, find when light actually turns on
+        for idx in df[ir_detected].index:
+            if idx >= len(df) - 1:
+                continue
+                
+            # Look ahead to find when light_state becomes 1 or LDR shows light is on
+            # LDR value decreases when light is on (lower value = more light)
+            look_ahead = min(20, len(df) - idx - 1)  # Look ahead up to 20 readings
+            
+            light_on_idx = None
+            initial_ldr = df.loc[idx, ldr_col] if pd.notna(df.loc[idx, ldr_col]) else 100
+            
+            for offset in range(1, look_ahead + 1):
+                future_idx = idx + offset
+                if future_idx >= len(df):
+                    break
+                
+                # Light is on if state is 1 or LDR value dropped significantly
+                future_state = df.loc[future_idx, state_col]
+                future_ldr = df.loc[future_idx, ldr_col] if pd.notna(df.loc[future_idx, ldr_col]) else initial_ldr
+                
+                if future_state == 1:
+                    light_on_idx = future_idx
+                    break
+                elif pd.notna(future_ldr) and (initial_ldr - future_ldr) > 10:  # LDR dropped by 10
+                    light_on_idx = future_idx
+                    break
+            
+            if light_on_idx:
+                # Calculate delay in seconds
+                try:
+                    time_diff = timestamp_numeric.iloc[light_on_idx] - timestamp_numeric.iloc[idx]
+                    delay.loc[idx] = max(0, time_diff)
+                except:
+                    delay.loc[idx] = 0
+        
+        # Alternative: Calculate delay based on state transitions when IR was recently detected
+        # This works even if we don't have future data
+        for idx in df[state_turned_on].index:
+            if idx == 0:
+                continue
+            
+            # Look back to see if IR was detected recently
+            look_back = min(10, idx)
+            for offset in range(1, look_back + 1):
+                past_idx = idx - offset
+                if df.loc[past_idx, ir_col] == 1:
+                    # IR was detected, calculate delay
+                    try:
+                        time_diff = timestamp_numeric.iloc[idx] - timestamp_numeric.iloc[past_idx]
+                        if delay.loc[past_idx] == 0:  # Only update if not already set
+                            delay.loc[past_idx] = max(0, time_diff)
+                    except:
+                        pass
+                    break
+        
+        return delay
     
     def _add_lag_features(self, df: pd.DataFrame, lags: List[int] = [1, 3, 6]) -> pd.DataFrame:
         """Add lagged features"""

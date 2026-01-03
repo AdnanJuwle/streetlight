@@ -21,10 +21,16 @@ class DataCollector:
     
     def __init__(self, database_url: str = None):
         """Initialize data collector"""
-        self.database_url = database_url or os.getenv(
-            'DATABASE_URL',
-            'postgresql://streetlight:streetlight@localhost:5432/streetlight_db'
-        )
+        if database_url:
+            self.database_url = database_url
+        else:
+            # Try to find the database file
+            db_paths = [
+                'sqlite:///./streetlight.db',  # In project root
+                'sqlite:///./backend/streetlight.db',  # In backend folder
+            ]
+            # Use first existing path or default to project root
+            self.database_url = os.getenv('DATABASE_URL', db_paths[0])
         self.engine = create_engine(self.database_url)
     
     def collect_device_data(

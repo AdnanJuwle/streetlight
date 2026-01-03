@@ -96,7 +96,11 @@ pip install -r requirements.txt
 python data_collection.py --days 30 --output data/training_data.csv
 
 # Train models
-python model_training.py --data data/training_data.csv --model-type both
+python model_training.py --data data/training_data.csv --model-type all
+
+# Train specific fault prediction model (logistic regression or decision tree)
+python model_training.py --data data/training_data.csv --model-type fault --fault-model-type logistic
+python model_training.py --data data/training_data.csv --model-type fault --fault-model-type tree
 ```
 
 ## API Endpoints
@@ -130,8 +134,27 @@ python model_training.py --data data/training_data.csv --model-type both
 
 ### Predictive Maintenance
 - Failure prediction using Random Forest
+- **Fault prediction using Logistic Regression/Decision Tree** (NEW)
+  - **Light dampness detection**: Uses LDR2 sensor readings when the light should be on. Higher LDR2 values indicate less light output, suggesting potential bulb degradation or environmental issues.
+  - **Relay aging detection**: Measures the delay between IR sensor detecting a vehicle and the light actually turning on. Increasing delays indicate relay wear and potential failure.
 - Anomaly detection using Isolation Forest
 - Health scoring for each device
+
+### Fault Prediction Details
+
+The fault prediction model uses two key factors:
+
+1. **Light Dampness (LDR2)**: 
+   - When `light_state = True` (light should be on), the LDR2 sensor should detect low values (more light).
+   - High LDR2 values when the light is on indicate dampness/fault (bulb not producing enough light).
+   - Feature: `light_{id}_dampness` - LDR2 value when light is on
+
+2. **Turn-on Delay (Relay Aging)**:
+   - Measures time between IR sensor detecting vehicle and light actually turning on.
+   - Increasing delays indicate relay aging and potential failure.
+   - Feature: `light_{id}_turn_on_delay` - Delay in seconds
+
+The model automatically creates alerts when fault probability exceeds 70%.
 
 ### Analytics
 - Traffic pattern analysis (hourly/daily patterns)

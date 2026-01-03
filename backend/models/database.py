@@ -2,7 +2,8 @@
 Database models for Smart Streetlight System
 """
 
-from sqlalchemy import create_engine, Column, Integer, Float, String, Boolean, DateTime, ForeignKey, Text, Index
+from sqlalchemy import create_engine, Column, Integer, Float, String, Boolean, DateTime, ForeignKey, Text, Index, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -152,16 +153,30 @@ class EnergyConsumption(Base):
 # Database setup
 def get_database_url():
     """Get database URL from environment or use default"""
+    db_url = os.getenv('DATABASE_URL')
+    if db_url:
+        return db_url
+    # Default to SQLite for easier testing
     return os.getenv(
         'DATABASE_URL',
-        'postgresql://streetlight:streetlight@localhost:5432/streetlight_db'
+        'sqlite:///./streetlight.db'
     )
 
 
 def create_engine_instance():
     """Create SQLAlchemy engine"""
     database_url = get_database_url()
-    return create_engine(database_url, echo=False)
+    # Enable foreign keys for SQLite
+    if database_url.startswith('sqlite'):
+        engine = create_engine(database_url, echo=False, connect_args={"check_same_thread": False})
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+        return engine
+    else:
+        return create_engine(database_url, echo=False)
 
 
 def get_session_local():
