@@ -16,6 +16,7 @@ class LightData(BaseModel):
     light_state: bool
     fault_detected: bool
     sms_sent: bool
+    turn_on_delay_ms: Optional[int] = None  # Turn-on delay in milliseconds (from Arduino)
 
 
 class GPSData(BaseModel):

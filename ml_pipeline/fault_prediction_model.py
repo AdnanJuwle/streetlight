@@ -52,6 +52,7 @@ class FaultPredictionModel:
             ldr_col = f'light_{light_id}_ldr'
             state_col = f'light_{light_id}_state'
             ir_col = f'light_{light_id}_ir'
+            delay_col = f'light_{light_id}_turn_on_delay_ms'  # Pre-calculated delay from Arduino
             
             if all(col in df.columns for col in [ldr_col, state_col, ir_col]):
                 # Light dampness: LDR2 value when light should be on
@@ -61,10 +62,15 @@ class FaultPredictionModel:
                     0  # No dampness when light is off
                 )
                 
-                # Turn-on delay: Calculate delay for this light
-                delay = self._calculate_delay_for_light(
-                    df, ir_col, state_col, ldr_col
-                )
+                # Turn-on delay: Use Arduino-provided delay if available, otherwise calculate
+                if delay_col in df.columns and not df[delay_col].isna().all():
+                    # Use Arduino-provided delay (already in seconds)
+                    delay = df[delay_col].fillna(0).values
+                else:
+                    # Calculate delay from historical data
+                    delay = self._calculate_delay_for_light(
+                        df, ir_col, state_col, ldr_col
+                    )
                 
                 # Use maximum dampness and delay across all lights for this reading
                 if f'light_dampness' not in features_df.columns:

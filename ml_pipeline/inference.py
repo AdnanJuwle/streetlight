@@ -257,6 +257,10 @@ class MLInference:
                     df_row[f'light_{light_id}_state'] = 1 if light.get('light_state', False) else 0
                     df_row[f'light_{light_id}_ir'] = 1 if light.get('ir_sensor', False) else 0
                     df_row[f'light_{light_id}_fault'] = 1 if light.get('fault_detected', False) else 0
+                    # Store turn-on delay if provided by Arduino (in milliseconds)
+                    turn_on_delay = light.get('turn_on_delay_ms', None)
+                    if turn_on_delay is not None:
+                        df_row[f'light_{light_id}_turn_on_delay_ms'] = turn_on_delay / 1000.0  # Convert to seconds
             
             # Combine with historical data for delay calculation
             if historical_data is not None and not historical_data.empty:

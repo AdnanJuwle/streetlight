@@ -49,12 +49,15 @@ class DataService:
         # Generate ML predictions
         try:
             ml_service = MLService()
+            # Include lights data for ML model (needed for dampness and delay calculation)
             sensor_dict = {
                 'ambient_light': data.ambient_light,
                 'ambient_light_raw': data.ambient_light_raw,
                 'active_lights_count': data.system.active_lights,
                 'faulty_lights_count': data.system.faulty_lights,
                 'is_dark': data.system.is_dark,
+                'lights_data': [light.dict() for light in data.lights],  # Include lights for ML
+                'timestamp': data.timestamp,
             }
             ml_service.generate_predictions(db, device_id, sensor_dict)
         except Exception as e:
