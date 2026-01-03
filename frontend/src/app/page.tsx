@@ -22,8 +22,11 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+
   const loadData = async () => {
     try {
+      setError(null);
       const [devicesData, alertsData] = await Promise.all([
         api.getDevices(),
         api.getAlerts(undefined, 'open'),
@@ -53,8 +56,12 @@ export default function Home() {
       setLatestData(dataMap);
 
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load data:', error);
+      const errorMessage = error?.response?.status === 404 
+        ? 'Backend API not found. Make sure the backend server is running on http://localhost:8000'
+        : error?.message || 'Failed to connect to backend API';
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -64,6 +71,31 @@ export default function Home() {
       <div className="container">
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <h2>Loading...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container">
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '40px',
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          borderRadius: '8px',
+          margin: '20px',
+          color: '#991b1b'
+        }}>
+          <h2 style={{ color: '#dc2626', marginBottom: '10px' }}>Connection Error</h2>
+          <p>{error}</p>
+          <p style={{ marginTop: '20px', fontSize: '0.875rem' }}>
+            Make sure the backend server is running:<br />
+            <code style={{ background: '#fee2e2', padding: '4px 8px', borderRadius: '4px' }}>
+              python -m uvicorn backend.main:app --port 8000
+            </code>
+          </p>
         </div>
       </div>
     );
