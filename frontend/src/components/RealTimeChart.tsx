@@ -21,7 +21,7 @@ export default function RealTimeChart({ deviceId }: RealTimeChartProps) {
 
   const loadData = async () => {
     try {
-      const historicalData = await api.getHistoricalData(deviceId, 1, 100); // Last hour, 100 points
+      const historicalData = await api.getHistoricalData(deviceId, 1); // Last hour
       setData(historicalData.reverse()); // Reverse to show chronological order
       setLoading(false);
     } catch (error) {
