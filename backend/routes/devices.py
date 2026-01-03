@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timedelta
 
-from models.database import get_session
+from models.database import SessionLocal
 from schemas import (
     SensorDataCreate, SensorDataResponse,
     DeviceCreate, DeviceResponse,

@@ -10,7 +10,14 @@ start_backend.bat
 **Option B: Manual start**
 ```bash
 cd backend
+set PYTHONPATH=%CD%\..
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Option C: From project root (alternative)**
+```bash
+# From project root directory
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 You should see:

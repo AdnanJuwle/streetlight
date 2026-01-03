@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from models.database import get_session, MLPrediction
+from models.database import SessionLocal, MLPrediction
 from schemas import MLPredictionResponse
 from sqlalchemy import desc
 

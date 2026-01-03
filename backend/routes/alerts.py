@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from models.database import get_session
+from models.database import SessionLocal
 from schemas import AlertResponse
 from services.data_service import AlertService
 
