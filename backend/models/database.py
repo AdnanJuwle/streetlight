@@ -156,11 +156,14 @@ def get_database_url():
     db_url = os.getenv('DATABASE_URL')
     if db_url:
         return db_url
-    # Default to SQLite for easier testing
-    return os.getenv(
-        'DATABASE_URL',
-        'sqlite:///./streetlight.db'
-    )
+    # Default to SQLite - use absolute path to project root
+    # This ensures the same database is used regardless of where the script runs from
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_root = os.path.dirname(backend_dir)
+    db_path = os.path.join(project_root, 'streetlight.db')
+    # Use forward slashes for SQLite path
+    db_path = db_path.replace('\\', '/')
+    return f'sqlite:///{db_path}'
 
 
 def create_engine_instance():
