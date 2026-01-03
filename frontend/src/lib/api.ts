@@ -62,6 +62,13 @@ export interface MLPrediction {
   created_at: string;
 }
 
+export interface DeviceStatistics {
+  total_readings: number;
+  avg_ambient_light: number;
+  max_faulty_lights: number;
+  avg_active_lights: number;
+}
+
 export const api = {
   async getDevices(): Promise<Device[]> {
     const response = await apiClient.get('/api/v1/devices');
@@ -104,6 +111,13 @@ export const api = {
 
   async getLatestMLPrediction(deviceId: string): Promise<MLPrediction> {
     const response = await apiClient.get(`/api/v1/ml/predictions/${deviceId}/latest`);
+    return response.data;
+  },
+
+  async getDeviceStatistics(deviceId: string, hours: number = 24): Promise<DeviceStatistics> {
+    const response = await apiClient.get(`/api/v1/devices/${deviceId}/statistics`, {
+      params: { hours },
+    });
     return response.data;
   },
 };
