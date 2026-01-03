@@ -23,20 +23,24 @@ The API will be available at:
 
 ## Training the Fault Prediction Model
 
-### Step 1: Train the Model
+### Step 1: Train the Focused Fault Prediction Model
 
-You have two options for the model type:
+**Recommended: Simplified Model (uses only dampness + delay)**
 
-#### Option A: Logistic Regression (Recommended for interpretability)
+This model focuses on exactly what you need:
+- **Light dampness** (LDR2 reading when light should be on)
+- **Turn-on delay** (time between command and light turning on)
+
+```bash
+cd ml_pipeline
+python fault_prediction_model.py --data ../data/training_data.csv --model-type logistic --look-ahead 24
+```
+
+**Alternative: Full Feature Model**
+
 ```bash
 cd C:\Users\adnan\Documents\repos\streetlight
 python ml_pipeline/model_training.py --data data/training_data.csv --model-type fault --fault-model-type logistic
-```
-
-#### Option B: Decision Tree (Better for non-linear patterns)
-```bash
-cd C:\Users\adnan\Documents\repos\streetlight
-python ml_pipeline/model_training.py --data data/training_data.csv --model-type fault --fault-model-type tree
 ```
 
 ### Step 2: Verify Model Training

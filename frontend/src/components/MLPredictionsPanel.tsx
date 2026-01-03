@@ -60,7 +60,7 @@ export default function MLPredictionsPanel({ deviceId }: MLPredictionsPanelProps
   const getPredictionLabel = (pred: MLPrediction) => {
     if (pred.prediction_type === 'fault') {
       const prob = pred.prediction_value || 0;
-      return `${(prob * 100).toFixed(1)}% fault probability`;
+      return `${(prob * 100).toFixed(1)}% failure probability`;
     }
     if (pred.prediction_type === 'failure') {
       const prob = pred.prediction_value || 0;
@@ -70,6 +70,32 @@ export default function MLPredictionsPanel({ deviceId }: MLPredictionsPanelProps
       return pred.prediction_label === 'anomaly' ? 'Anomaly Detected' : 'Normal';
     }
     return pred.prediction_label || 'Unknown';
+  };
+  
+  const getInterpretation = (pred: MLPrediction) => {
+    // Try to extract interpretation from features JSON
+    if (pred.features) {
+      try {
+        const features = JSON.parse(pred.features);
+        if (features.interpretation) {
+          return features.interpretation;
+        }
+        // Show key feature values
+        if (features.light_dampness !== undefined || features.turn_on_delay !== undefined) {
+          const parts = [];
+          if (features.light_dampness !== undefined) {
+            parts.push(`Dampness: ${features.light_dampness.toFixed(1)}`);
+          }
+          if (features.turn_on_delay !== undefined) {
+            parts.push(`Delay: ${features.turn_on_delay.toFixed(1)}s`);
+          }
+          return parts.join(' | ');
+        }
+      } catch (e) {
+        // Not JSON or can't parse
+      }
+    }
+    return null;
   };
 
   return (
@@ -104,6 +130,19 @@ export default function MLPredictionsPanel({ deviceId }: MLPredictionsPanelProps
                   </div>
                 )}
               </div>
+              
+              {pred.prediction_type === 'fault' && getInterpretation(pred) && (
+                <div style={{ 
+                  fontSize: '0.875rem', 
+                  color: '#666', 
+                  marginTop: '8px',
+                  padding: '8px',
+                  background: '#f9fafb',
+                  borderRadius: '4px'
+                }}>
+                  {getInterpretation(pred)}
+                </div>
+              )}
               
               <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '8px' }}>
                 Model: {pred.model_name || 'N/A'} v{pred.model_version || 'N/A'}

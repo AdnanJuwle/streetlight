@@ -130,6 +130,7 @@ class MLPredictionResponse(BaseModel):
     confidence: Optional[float]
     model_version: Optional[str]
     model_name: Optional[str]
+    features: Optional[str] = None  # JSON string with feature values and interpretation
     created_at: datetime
     
     class Config:

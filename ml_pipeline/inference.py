@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 
 from feature_engineering import FeatureEngineer
+from fault_prediction_model import FaultPredictionModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class MLInference:
         self.failure_model = None
         self.anomaly_model = None
         self.fault_model = None
+        self.fault_model_simple = None  # New simplified model
         self.failure_features = None
         self.anomaly_features = None
         self.fault_features = None
@@ -71,6 +73,13 @@ class MLInference:
             logger.info("Fault prediction model loaded")
         else:
             logger.warning("Fault prediction model not found")
+        
+        # Try to load simplified model (focused on dampness and delay only)
+        simple_model_path = os.path.join(self.model_dir, 'fault_predictor_simple.pkl')
+        if os.path.exists(simple_model_path):
+            self.fault_model_simple = FaultPredictionModel(self.model_dir)
+            self.fault_model_simple.load(simple_model_path)
+            logger.info("Simplified fault prediction model loaded (dampness + delay only)")
     
     def predict_failure(self, sensor_data: Dict[str, Any], historical_data: pd.DataFrame = None) -> Dict[str, Any]:
         """Predict failure probability"""
@@ -149,6 +158,10 @@ class MLInference:
         1. Light dampness (LDR2 readings when light should be on)
         2. Turn-on delay (time between IR detection and light turning on)
         """
+        # Try simplified model first (focused on just dampness and delay)
+        if self.fault_model_simple and self.fault_model_simple.model:
+            return self._predict_fault_simple(sensor_data, historical_data)
+        
         if not self.fault_model:
             return {'error': 'Fault prediction model not loaded'}
         
@@ -202,6 +215,90 @@ class MLInference:
             }
         except Exception as e:
             logger.error(f"Error in fault prediction: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {'error': str(e)}
+    
+    def _predict_fault_simple(
+        self,
+        sensor_data: Dict[str, Any],
+        historical_data: pd.DataFrame = None
+    ) -> Dict[str, Any]:
+        """
+        Use simplified model that only uses dampness and delay
+        """
+        try:
+            # Convert sensor_data to DataFrame format for feature extraction
+            # Need to parse lights_data if it exists
+            import json
+            
+            # Create a DataFrame row from sensor_data
+            df_row = pd.DataFrame([{
+                'timestamp': sensor_data.get('timestamp', datetime.utcnow()),
+                'ambient_light': sensor_data.get('ambient_light', 0),
+            }])
+            
+            # Parse lights_data
+            lights_data = sensor_data.get('lights_data', [])
+            if isinstance(lights_data, str):
+                lights_data = json.loads(lights_data)
+            
+            # Add light columns
+            for i in range(1, 5):
+                df_row[f'light_{i}_ldr'] = None
+                df_row[f'light_{i}_state'] = None
+                df_row[f'light_{i}_ir'] = None
+                df_row[f'light_{i}_fault'] = None
+            
+            for light in lights_data:
+                light_id = light.get('id', 0)
+                if 1 <= light_id <= 4:
+                    df_row[f'light_{light_id}_ldr'] = light.get('ldr_value', 0)
+                    df_row[f'light_{light_id}_state'] = 1 if light.get('light_state', False) else 0
+                    df_row[f'light_{light_id}_ir'] = 1 if light.get('ir_sensor', False) else 0
+                    df_row[f'light_{light_id}_fault'] = 1 if light.get('fault_detected', False) else 0
+            
+            # Combine with historical data for delay calculation
+            if historical_data is not None and not historical_data.empty:
+                # Parse historical lights_data if needed
+                if 'lights_data' in historical_data.columns:
+                    try:
+                        from data_collection import DataCollector
+                    except ImportError:
+                        from ml_pipeline.data_collection import DataCollector
+                    collector = DataCollector()
+                    historical_data = collector._parse_lights_data(historical_data)
+                
+                df = pd.concat([historical_data.tail(20), df_row], ignore_index=True)
+            else:
+                df = df_row
+            
+            # Extract features using the simplified model
+            features_df = self.fault_model_simple.prepare_features(df)
+            
+            if features_df.empty or 'light_dampness' not in features_df.columns:
+                return {'error': 'Could not extract dampness/delay features'}
+            
+            # Get the latest values
+            max_dampness = features_df['light_dampness'].iloc[-1] if len(features_df) > 0 else 0
+            max_delay = features_df['turn_on_delay'].iloc[-1] if len(features_df) > 0 else 0
+            
+            # Predict using simplified model
+            prediction = self.fault_model_simple.predict(max_dampness, max_delay)
+            
+            return {
+                'prediction': 1 if prediction['will_fail'] else 0,
+                'fault_probability': prediction['failure_probability'],
+                'is_fault_predicted': prediction['will_fail'],
+                'timestamp': datetime.utcnow().isoformat(),
+                'key_features': {
+                    'light_dampness': float(max_dampness),
+                    'turn_on_delay': float(max_delay)
+                },
+                'interpretation': prediction['interpretation']
+            }
+        except Exception as e:
+            logger.error(f"Error in simplified fault prediction: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return {'error': str(e)}

@@ -143,6 +143,12 @@ class MLService:
             # Store fault prediction (new)
             if 'fault' in predictions and 'error' not in predictions['fault']:
                 fault_pred = predictions['fault']
+                
+                # Build features JSON with interpretation
+                features_dict = fault_pred.get('key_features', {})
+                if 'interpretation' in fault_pred:
+                    features_dict['interpretation'] = fault_pred['interpretation']
+                
                 ml_pred = MLPrediction(
                     device_id=device_id,
                     prediction_type='fault',
@@ -150,9 +156,9 @@ class MLService:
                     prediction_value=fault_pred.get('fault_probability'),
                     prediction_label='fault' if fault_pred.get('is_fault_predicted') else 'normal',
                     confidence=fault_pred.get('fault_probability', 0),
-                    model_name='fault_predictor',
+                    model_name='fault_predictor_simple' if 'interpretation' in fault_pred else 'fault_predictor',
                     model_version='1.0',
-                    features=json.dumps(fault_pred.get('key_features', {}))
+                    features=json.dumps(features_dict)
                 )
                 db.add(ml_pred)
                 
